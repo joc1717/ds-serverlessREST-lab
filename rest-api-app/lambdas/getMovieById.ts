@@ -1,13 +1,16 @@
 import { APIGatewayProxyHandlerV2 } from "aws-lambda";
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, GetCommand, QueryCommandInput, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { it } from "node:test";
+
 
 const ddbDocClient = createDDbDocClient();
 
 export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {     // Note change
   try {
     console.log("[EVENT]", JSON.stringify(event));
+    const queryParams = event.queryStringParameters;
     const parameters  = event?.pathParameters;
     const movieId = parameters?.movieId ? parseInt(parameters.movieId) : undefined;
 
@@ -23,12 +26,38 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {    
 
     const commandOutput = await ddbDocClient.send(
       new GetCommand({
-        TableName: process.env.TABLE_NAME,
+        TableName: process.env.MOVIE_TABLE,
         Key: { id: movieId },
       })
     );
-    console.log("GetCommand response: ", commandOutput);
-    if (!commandOutput.Item) {
+
+    let response: any = {
+      data: {
+        movie: commandOutput.Item,
+      },
+    };
+
+    if(queryParams?.cast == "true"){
+      let commandInput: QueryCommandInput = {
+        TableName: process.env.CAST_TABLE,
+        KeyConditionExpression: "movieId = :m",
+        ExpressionAttributeValues: {
+          ":m": movieId,
+        },
+      };
+      const castComandOutput = await ddbDocClient.send(
+        new QueryCommand(commandInput)
+      )
+      
+      response.data.cast = castComandOutput.Items
+
+      console.log("[CAST QUERY] ", castComandOutput);
+      console.log("[RESPONSE] ", response);
+    }
+
+
+    console.log("GetCommand response: ", response);
+    if (!response.data.movie) {
       return {
         statusCode: 404,
         headers: {
@@ -38,7 +67,7 @@ export const handler: APIGatewayProxyHandlerV2 = async (event, context) => {    
       };
     }
     const body = {
-      data: commandOutput.Item,
+      data: response,
     };
 
     // Return Response

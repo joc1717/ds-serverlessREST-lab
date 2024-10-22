@@ -46,7 +46,8 @@ export class RestAPIStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(10),
         memorySize: 128,
         environment: {
-          TABLE_NAME: moviesTable.tableName,
+          MOVIE_TABLE: moviesTable.tableName,
+          CAST_TABLE: movieCastsTable.tableName,
           REGION: 'eu-west-1',
         },
       }
@@ -130,7 +131,8 @@ export class RestAPIStack extends cdk.Stack {
     moviesTable.grantReadData(getAllMoviesFn)
     moviesTable.grantReadWriteData(newMovieFn)
     moviesTable.grantReadWriteData(deleteMovieByIDFn)
-    movieCastsTable.grantReadData(getMovieCastMembersFn);
+    movieCastsTable.grantReadData(getMovieCastMembersFn)
+    movieCastsTable.grantReadWriteData(getMovieByIdFn)
 
     // REST API 
     const api = new apig.RestApi(this, "RestAPI", {
@@ -166,6 +168,12 @@ export class RestAPIStack extends cdk.Stack {
     movieEndpoint.addMethod(
       "DELETE",
       new apig.LambdaIntegration(deleteMovieByIDFn, { proxy: true })
+    )
+
+    const movieAndCastEndpoint = movieEndpoint.addResource("cast")
+    movieAndCastEndpoint.addMethod(
+      "GET",
+      new apig.LambdaIntegration(getMovieByIdFn, { proxy: true })
     )
 
     const movieCastEndpoint = moviesEndpoint.addResource("cast");
